@@ -30,8 +30,7 @@ public final class TriTerraCarAppService extends CarAppService {
             @NonNull
             @Override
             public Screen onCreateScreen(@NonNull Intent intent) {
-                return new BranchListScreen(getCarContext(), new FirestoreTodayPlanRepository(
-                        isDebuggable() ? new PlaceholderBranches() : null));
+                return BranchListScreen.today(getCarContext(), new FirestoreTodayPlanRepository(), isDebuggable());
             }
         };
     }

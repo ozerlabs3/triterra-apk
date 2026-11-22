@@ -1,11 +1,21 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">TriTerra</string>
-    <string name="title_activity_main">TriTerra</string>
+    <string name="app_name">TriTerra Auto</string>
+    <string name="title_activity_main">TriTerra Auto</string>
     <string name="package_name">com.ozerlabs.triterra.auto</string>
     <string name="custom_url_scheme">com.ozerlabs.triterra.auto</string>
     <!-- Android Auto (Hebrew; the host lays the templates out RTL) -->
     <string name="car_list_title">טריטרה · העצירות של היום</string>
-    <string name="car_no_stops">אין עצירות להצגה · ודאו שהתחברתם לטריטרה בטלפון</string>
+    <string name="car_no_stops">אין עצירות מתוכננות להיום</string>
+    <string name="car_sign_in_required">נדרשת התחברות לטריטרה בטלפון כדי להציג את העצירות של היום</string>
+    <string name="car_load_failed">לא ניתן לטעון את העצירות של היום</string>
+    <string name="car_retry">נסו שוב</string>
+    <string name="car_demo_open">מצב הדגמה</string>
+    <string name="car_demo_title">מצב הדגמה · נתוני דמה</string>
+    <string name="car_more_stops">+%1$d עצירות נוספות</string>
+    <string name="car_more_title">עצירות נוספות</string>
+    <string name="car_more_note">+%1$d נוספות · יופיעו אחרי סיום עצירות קודמות</string>
+    <string name="car_navigate">נווט</string>
+    <string name="car_no_point">אין נקודת מפה · הניווט יחפש לפי השם</string>
     <string name="car_nav_failed">לא ניתן לפתוח ניווט</string>
 </resources>

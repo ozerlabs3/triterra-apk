@@ -2,7 +2,6 @@ package com.ozerlabs.triterra.car;
 
 import androidx.annotation.NonNull;
 
-import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -19,6 +18,6 @@ import java.util.function.Consumer;
  *   - no writes (the web app guards today's doc with a revision transaction), no Storage.
  */
 public interface TodayPlanRepository {
-    /** Delivers today's stops (possibly empty) on the main thread; may be called once. */
-    void loadTodayStops(@NonNull Consumer<List<Branch>> onResult);
+    /** Delivers exactly one Result on the main thread. Never substitutes demo data. */
+    void loadToday(@NonNull Consumer<TodayPlan.Result> onResult);
 }

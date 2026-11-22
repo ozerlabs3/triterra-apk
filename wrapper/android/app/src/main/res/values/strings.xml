@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">TriTerra</string>
+    <string name="title_activity_main">TriTerra</string>
+    <string name="package_name">com.ozerlabs.triterra.auto</string>
+    <string name="custom_url_scheme">com.ozerlabs.triterra.auto</string>
+    <!-- Android Auto (Hebrew; the host lays the templates out RTL) -->
+    <string name="car_list_title">טריטרה · העצירות של היום</string>
+    <string name="car_no_stops">אין עצירות להצגה · ודאו שהתחברתם לטריטרה בטלפון</string>
+    <string name="car_nav_failed">לא ניתן לפתוח ניווט</string>
+</resources>

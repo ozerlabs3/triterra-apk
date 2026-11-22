@@ -1,0 +1,4 @@
+node_modules/
+www/
+# Firebase client config (triterra-921bc, prod + .auto clients): owner-provided, kept out of this public repo.
+android/app/google-services.json

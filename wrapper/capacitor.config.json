@@ -1,0 +1,19 @@
+{
+	"appId": "com.ozerlabs.triterra.auto",
+	"appName": "TriTerra",
+	"webDir": "www",
+	"android": {
+		"allowMixedContent": false
+	},
+	"plugins": {
+		"FirebaseAuthentication": {
+			"skipNativeAuth": false,
+			"providers": [
+				"google.com"
+			]
+		},
+		"CapacitorUpdater": {
+			"autoUpdate": false
+		}
+	}
+}

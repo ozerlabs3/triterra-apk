@@ -1,0 +1,92 @@
+package com.ozerlabs.triterra.car;
+
+import android.util.Log;
+
+import androidx.annotation.NonNull;
+
+import com.google.android.gms.tasks.Tasks;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QuerySnapshot;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+
+/**
+ * READ-ONLY Firestore source for today's stops (contract: field-region-map main@4bdaab9).
+ * Reads, in order, only after each gate passes:
+ *   users/{uid} -> regions/{regionId} -> users/{uid}/myDays/{dayId}, stores (regionId ==),
+ *   users/{uid}/storeOverrides.
+ * There is no write, no transaction, no Storage and no Worker call anywhere in this class, by design:
+ * the web app owns the myDays revision-transaction protocol.
+ * Identity is the signed-in Firebase user only; nothing is hardcoded.
+ */
+public final class FirestoreTodayPlanRepository implements TodayPlanRepository {
+    private static final String TAG = "TriTerraCar";
+
+    @Override
+    public void loadToday(@NonNull Consumer<TodayPlan.Result> onResult) {
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        if (user == null) { gated("not-signed-in", onResult); return; }
+        String uid = user.getUid();
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+
+        db.collection("users").document(uid).get().addOnCompleteListener(p -> {
+            if (!p.isSuccessful()) { failed("profile-read", p.getException(), onResult); return; }
+            Map<String, Object> profile = p.getResult().getData();
+            String fail = TodayPlan.profileGateFailure(profile, user.getEmail());
+            if (fail != null) { gated(fail, onResult); return; }
+            String regionId = (String) profile.get("regionId");
+
+            db.collection("regions").document(regionId).get().addOnCompleteListener(r -> {
+                if (!r.isSuccessful()) { failed("region-read", r.getException(), onResult); return; }
+                String rFail = TodayPlan.regionGateFailure(r.getResult().getData(), regionId);
+                if (rFail != null) { gated(rFail, onResult); return; }
+
+                String dayId = TodayPlan.dayId(System.currentTimeMillis());
+                Tasks.whenAllSuccess(
+                        db.collection("users").document(uid).collection("myDays").document(dayId).get(),
+                        db.collection("stores").whereEqualTo("regionId", regionId).get(),
+                        db.collection("users").document(uid).collection("storeOverrides").get()
+                ).addOnCompleteListener(all -> {
+                    if (!all.isSuccessful()) { failed("plan-read", all.getException(), onResult); return; }
+                    // Auth-epoch fence: drop the result if the account changed while we were reading.
+                    FirebaseUser now = FirebaseAuth.getInstance().getCurrentUser();
+                    if (now == null || !uid.equals(now.getUid())) { gated("account-changed", onResult); return; }
+                    List<Object> res = all.getResult();
+                    onResult.accept(TodayPlan.Result.ready(TodayPlan.remainingStops(state((DocumentSnapshot) res.get(0)),
+                            byId((QuerySnapshot) res.get(1)), byId((QuerySnapshot) res.get(2)))));
+                });
+            });
+        });
+    }
+
+    /** The {state, revision, updatedAt} envelope is read as a whole; a missing doc = day not started. */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> state(DocumentSnapshot day) {
+        Object s = day.exists() ? day.get("state") : null;
+        return s instanceof Map ? (Map<String, Object>) s : null;
+    }
+
+    private static Map<String, Map<String, Object>> byId(QuerySnapshot q) {
+        Map<String, Map<String, Object>> m = new HashMap<>();
+        for (DocumentSnapshot d : q.getDocuments()) if (d.getData() != null) m.put(d.getId(), d.getData());
+        return m;
+    }
+
+    /** Auth or profile/region gate did not pass: the driver must sign in; no stops are shown. */
+    private static void gated(String reason, Consumer<TodayPlan.Result> onResult) {
+        Log.w(TAG, "today plan gated: " + reason); // reason codes only, never identity
+        onResult.accept(TodayPlan.Result.blocked(TodayPlan.Status.SIGN_IN_REQUIRED));
+    }
+
+    /** A read failed (e.g. permission denied, or offline with nothing cached). */
+    private static void failed(String step, Exception e, Consumer<TodayPlan.Result> onResult) {
+        Log.w(TAG, "today plan read failed at " + step, e);
+        onResult.accept(TodayPlan.Result.blocked(TodayPlan.Status.LOAD_FAILED));
+    }
+}

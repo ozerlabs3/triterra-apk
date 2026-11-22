@@ -13,7 +13,7 @@ This is a debug-only, **newly built** Capacitor wrapper with an added Android fo
 | `assets/capacitor.config.json` values | appName TriTerra, webDir www, `allowMixedContent:false`, FirebaseAuthentication `{skipNativeAuth:true, providers:[google.com]}`, CapacitorUpdater `{autoUpdate:false}` | same values except `appId` and `skipNativeAuth:false` (owner-approved, `.auto` only) | values |
 | `assets/capacitor.plugins.json` | 3 entries: `@capacitor-firebase/authentication`, `@capacitor/contacts`, `@capgo/capacitor-updater` | same package names and classpaths (file contents equal) | text |
 | `assets/public/**` (web bundle) | `index.html` injects `TRITERRA_ENV="prod"`, `TRITERRA_WRAPPER="android"`; `ota-version.json` 1.0.0 | **copied** from the prod APK by `scripts/from-prod-apk.sh` | copied files |
-| Firebase client values (`google_app_id`, `default_web_client_id`, `project_id`=`triterra-921bc`, …) | resources | copied by the same script, read-only | copied values |
+| Firebase client (`google_app_id`, `default_web_client_id`, `project_id`=`triterra-921bc`) | app `1:119633342870:android:27d31244…` | **own registered app** `1:119633342870:android:43822c25…` from the owner's `google-services.json`; same project, same web client `…-siogpu1h…`, same API key | intentionally different app id |
 | manifest: package / activity | `com.ozerlabs.triterra`, `.MainActivity` (BridgeActivity) | `com.ozerlabs.triterra.auto`, same activity class name | names |
 | SDK levels | min 24 / target 36 / compile 36; AGP 8.13.0 (`app-metadata.properties`) | 24 / 36 / 36 (Capacitor 8.6.2 template) | values |
 | permissions (`dump badging`) | INTERNET, READ/WRITE_CONTACTS, ACCESS_NETWORK_STATE, READ_GSERVICES, WAKE_LOCK, RECEIVE_BOOT_COMPLETED, FOREGROUND_SERVICE, DYNAMIC_RECEIVER… | the same list **+ `androidx.car.app.MAP_TEMPLATES`** | list |
@@ -40,13 +40,18 @@ Needs JDK 21, Node 22, and an Android SDK (platform 36, build-tools 35+).
 
 ```bash
 cd wrapper && npm ci
-ANDROID_HOME=/path/to/sdk npm run from-apk     # www/ + Firebase client values from ../triterra-prod.apk
+npm run from-apk                               # www/ from ../triterra-prod.apk
+# put the owner's google-services.json at android/app/google-services.json (required)
 npx cap sync android
 cd android && ./gradlew clean assembleDebug testDebugUnitTest
 # -> android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-There is no release signing config. `www/` and the Firebase values file are gitignored. The values are needed because the FirebaseAuthentication plugin calls `FirebaseAuth.getInstance()` in `load()`, and Capacitor does not catch the resulting exception, so without them the phone app would crash on launch. If `android/app/google-services.json` exists (after the owner registers the app, section 5), the script copies nothing and that file is used instead.
+There is no release signing config. `www/` is gitignored.
+
+**Firebase config:** `android/app/google-services.json` is the file the owner downloaded from the console (project `triterra-921bc`). It holds two clients, prod and `.auto`, and the google-services plugin picks the `com.ozerlabs.triterra.auto` client. It replaces the earlier interim copy of prod values. The file is **required**: `app/build.gradle` stops with "google-services.json is missing …". Without it the FirebaseAuthentication plugin would crash the app on launch, because it calls `FirebaseAuth.getInstance()` in `load()` and Capacitor does not catch the exception. The file is **gitignored** because this repo is public and it contains the project's API key: get it from the owner or the Firebase console.
+
+**Signing key must match the registration:** the `.auto` OAuth client is registered for debug SHA-1 `1D:1E:04:52:3E:E7:F2:F3:0E:AF:D1:E1:6E:B3:D1:DB:DE:8E:74:FE`. Only APKs signed with that machine's `~/.android/debug.keystore` can use Google sign-in. Check with `./gradlew signingReport` (variant debug). APKs built anywhere else install and run, and the car shows the sign-in-required state (b).
 
 ## 3. Launcher icon
 
@@ -127,19 +132,13 @@ Simplifications: only the coordinate fields of `applyStoreOverrides` are mirrore
 ## 6. Auth: what changed and what is still blocked
 
 - **Done (owner-approved, `.auto` only):** `skipNativeAuth: false` in `wrapper/capacitor.config.json`. The native SDK now also holds and persists the user, so the car's Firestore reads can work after a restart and while the phone is locked. Prod config is untouched.
-- **Still expected to fail until the console steps below are done.** I did not run it: there is no emulator in the build container. Native Google sign-in in the `.auto` app should be rejected with a developer-console configuration error (Credential Manager "[28444] Developer console is not set up correctly" / `DEVELOPER_ERROR 10`). That is because `triterra-921bc` has no Android app or OAuth client for package `com.ozerlabs.triterra.auto` with the build machine's debug SHA-1. Prod's own registration (package `com.ozerlabs.triterra`, signer SHA-1 `A6:05:05:77:F4:6D:2E:4C:90:32:5B:D6:87:DD:78:9A:8E:28:C0:09`) is inferred from prod sign-in working; I have not seen it in the console. Until sign-in works, the car shows state (b).
+- **Console registration done by the owner (22.11):** Android app `com.ozerlabs.triterra.auto` (`1:119633342870:android:43822c25b2eaf3579eadb7`) in `triterra-921bc`, with an Android OAuth client for debug SHA-1 `1D:1E:04:52:…:8E:74:FE`. The `google-services.json` with both clients is wired into the build (section 2).
+- **Not yet verified on a device.** Sign-in only works on an APK signed by the registered key (section 2). The cloud build container's key (`67:94:BE:03:…:D1:B4`) is **not** registered, so APKs built there still get the developer-console error. That is expected, and I am not asking for that key to be registered.
 
-### BLOCKED DECISIONS for the owner (none performed)
-1. **App registration:** in the Firebase console, project `triterra-921bc`, add an Android app with package `com.ozerlabs.triterra.auto`.
-2. **SHA-1:** add the debug SHA-1 of the machine that will build the APK (`./gradlew signingReport`, variant debug). Do not register the SHA-1 from the cloud container (`67:94:BE:03:…:D1:B4`); its debug key is temporary.
-3. **google-services.json:** download the new app's file into `wrapper/android/app/` (gitignored). The build then uses it in place of the values copied from the prod APK.
-4. **API key restriction check:** in Google Cloud console → APIs & Services → Credentials, check whether the project's Android API key is restricted to specific apps. If it is, add `com.ozerlabs.triterra.auto` with the same SHA-1.
-5. **Optional preview path:** project `triterra-preview` uses anonymous sign-in and demo data. Using it would need:
-   - (i) an Android app for `com.ozerlabs.triterra.auto` registered in `triterra-preview` (anonymous auth needs no SHA-1);
-   - (ii) the preview web bundle (`TRITERRA_ENV="preview"`);
-   - (iii) a preview-only gate in the car, since anonymous users have no email and the prod gate correctly rejects them.
-
-   None of this is built.
+### Remaining decisions for the owner (none performed)
+1. **Build on the registered machine:** build `assembleDebug` on the computer whose debug SHA-1 is `1D:1E:…:74:FE`, then sign in on the phone and open the car. Expected result: state (a) with today's real stops.
+2. **API key restriction check:** in Google Cloud console → APIs & Services → Credentials, check whether the API key in `google-services.json` is restricted to Android apps. If it is, add `com.ozerlabs.triterra.auto` with the same SHA-1. Otherwise Firestore and Auth calls from `.auto` are blocked even after sign-in.
+3. **Optional preview path:** project `triterra-preview` would need its own `.auto` app registration (anonymous auth needs no SHA-1), the preview web bundle, and a preview-only gate in the car. None of this is built.
 
 ## 7. Test on the Desktop Head Unit (DHU)
 1. Android Studio → SDK Manager → SDK Tools → **Android Auto Desktop Head Unit Emulator** (`$ANDROID_HOME/extras/google/auto/`). On Linux: `chmod +x desktop-head-unit`, plus glibc 2.32+, libc++1 and libc++abi1.

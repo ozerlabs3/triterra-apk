@@ -48,11 +48,10 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
-try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
-    }
-} catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+// Firebase config for com.ozerlabs.triterra.auto (project triterra-921bc), downloaded from the console by the owner.
+// Required: without a FirebaseApp the FirebaseAuthentication plugin crashes the app on launch.
+if (!file('google-services.json').exists()) {
+    throw new GradleException("wrapper/android/app/google-services.json is missing - get it from the Firebase console " +
+            "(project triterra-921bc, app com.ozerlabs.triterra.auto); see wrapper/README.md section 2.")
 }
+apply plugin: 'com.google.gms.google-services'
